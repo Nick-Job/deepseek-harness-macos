@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tw93/Pake/main/schema/pake.schema.json",
+  "url": "http://127.0.0.1:3080",
+  "name": "DeepSeek Harness",
+  "identifier": "com.dsh.web",
+  "title": "DeepSeek Harness",
+  "icon": "icon.png",
+  "width": 1280,
+  "height": 840,
+  "minWidth": 960,
+  "minHeight": 640,
+  "appVersion": "1.0.0",
+  "targets": "app"
+}
