@@ -16,7 +16,9 @@ concurrency:
 jobs:
   build:
     name: Build macOS app and DMG
-    runs-on: macos-13
+    # macos-13 (Intel) 已被 GitHub 弃用，改用当前维护的 macos-15 (arm64)。
+    # multiArch 会在任意架构的 runner 上交叉编译出 universal 通用版。
+    runs-on: macos-15
     timeout-minutes: 60
     steps:
       - name: Checkout
@@ -29,10 +31,10 @@ jobs:
         with:
           toolchain: stable
 
-      # app.json 启用了 multiArch（Intel + Apple Silicon 通用版）。
-      # macos-13 是 Intel runner，需要额外安装 arm64 目标才能交叉编译出 universal 二进制。
-      - name: Add aarch64 Rust target
-        run: rustup target add aarch64-apple-darwin
+      # app.json 启用了 multiArch（Intel + Apple Silicon 通用版），
+      # 需要同时安装两个 macOS 目标工具链，与 runner 架构无关
+      - name: Add Rust targets
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -43,11 +45,10 @@ jobs:
       - name: Install Pake CLI
         run: npm install -g pake-cli@3.15.6
 
-      - name: Build .app bundle
-        run: pake --config app.json --json --targets app
-
-      - name: Build .dmg installer
-        run: pake --config app.json --json --targets dmg
+      # 一次编译同时产出 .app 和 .dmg（macOS 默认 bundle targets 为 app + dmg）。
+      # 不要拆成 --targets app / --targets dmg 两步，那样会重复编译两次，白白拉长构建时间。
+      - name: Build .app and .dmg
+        run: pake --config app.json --json
 
       - name: Zip .app
         run: |

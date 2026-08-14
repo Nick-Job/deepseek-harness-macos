@@ -10,6 +10,5 @@
   "minWidth": 960,
   "minHeight": 640,
   "appVersion": "1.0.0",
-  "multiArch": true,
-  "targets": "app"
+  "multiArch": true
 }

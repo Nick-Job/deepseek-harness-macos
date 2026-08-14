@@ -39,22 +39,19 @@ App 启动后会在独立窗口中打开 `http://127.0.0.1:3080`，使用前需�
 工作流会在 macOS 上完成以下操作：
 
 1. 安装 Rust 工具链和 Pake CLI（`pake-cli@3.15.6`，版本已锁定，可随时升级）。
-2. 根据 `app.json` 构建 `.app`。
-3. 构建 `.dmg`。
+2. 根据 `app.json` 一次编译产出 `.app` 和 `.dmg`（universal 通用版）。
+3. 压缩 `.app` 为 `.app.zip`。
 4. 上传 `.app.zip` 和 `.dmg` 到 workflow artifacts。
 5. 标签触发时，自动把产物附加到 GitHub Release（重复运行同一标签会覆盖旧资产）。
 
 ## 本地构建
 
 ```bash
-# 安装 Pake
-brew install pake
+# 安装 Pake CLI（推荐 npm 版本，与 CI 保持一致；brew install pake 亦可）
+npm install -g pake-cli@3.15.6
 
-# 构建 .app
-pake --config app.json --json --targets app
-
-# 构建 .dmg
-pake --config app.json --json --targets dmg
+# 一次编译产出 .app 和 .dmg（universal 通用版）
+pake --config app.json --json
 ```
 
 ## 配置
