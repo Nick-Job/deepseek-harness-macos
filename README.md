@@ -1,8 +1,18 @@
 # DeepSeek Harness macOS
 
+![Build](https://github.com/Nick-Job/deepseek-harness-macos/actions/workflows/pake-macos.yml/badge.svg)
+
 使用 [Pake](https://github.com/tw93/Pake)（Rust/Tauri）把 DeepSeek Harness 网页端 dsh web 打包成 macOS 桌面 App。
 
 App 启动后会在独立窗口中打开 `http://127.0.0.1:3080`，使用前需要先启动 dsh web 服务。
+
+## 快速开始
+
+1. **安装 dsh**：`npm install -g @deepseek-ai/dsh`（需要 Node.js ≥ 20）
+2. **终端启动服务**：`dsh web`（默认监听 `http://127.0.0.1:3080`，保持终端运行）
+3. **打开 App**：双击 `DeepSeek Harness.app`（或从 DMG 安装）
+
+📖 详细图文教程见 [使用教程.md](使用教程.md)
 
 ## 构建产物
 
@@ -28,11 +38,11 @@ App 启动后会在独立窗口中打开 `http://127.0.0.1:3080`，使用前需�
 
 工作流会在 macOS 上完成以下操作：
 
-1. 安装 Pake CLI。
+1. 安装 Rust 工具链和 Pake CLI（`pake-cli@3.15.6`，版本已锁定，可随时升级）。
 2. 根据 `app.json` 构建 `.app`。
 3. 构建 `.dmg`。
 4. 上传 `.app.zip` 和 `.dmg` 到 workflow artifacts。
-5. 标签触发时，自动把产物附加到 GitHub Release。
+5. 标签触发时，自动把产物附加到 GitHub Release（重复运行同一标签会覆盖旧资产）。
 
 ## 本地构建
 
