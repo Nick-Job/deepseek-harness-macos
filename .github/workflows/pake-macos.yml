@@ -29,6 +29,11 @@ jobs:
         with:
           toolchain: stable
 
+      # app.json 启用了 multiArch（Intel + Apple Silicon 通用版）。
+      # macos-13 是 Intel runner，需要额外安装 arm64 目标才能交叉编译出 universal 二进制。
+      - name: Add aarch64 Rust target
+        run: rustup target add aarch64-apple-darwin
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:

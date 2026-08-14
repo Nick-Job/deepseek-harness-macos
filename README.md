@@ -66,10 +66,11 @@ pake --config app.json --json --targets dmg
 - `icon`：应用图标，默认使用仓库里的 `icon.png`
 - `width` / `height`：默认窗口大小
 - `minWidth` / `minHeight`：窗口最小尺寸
+- `multiArch`：macOS 通用版（同时包含 Intel 与 Apple Silicon 两套原生代码），默认 `false`
 
 ## 常见问题
 
 - 打开后是空白页：确认 dsh web 已经启动，并且 `127.0.0.1:3080` 可访问。
 - 提示“无法打开”：当前构建为 ad-hoc 签名，右键 App 选择“打开”即可。
-- 需要 Apple Silicon 版本：在 GitHub Actions 中把 `runs-on` 改为 `macos-14-arm64`，或使用 Pake 的 `--multi-arch` 构建通用版本。
+- Apple Silicon 能用吗：`app.json` 已启用 `multiArch: true`，构建产物为 universal 通用版，Intel 与 Apple Silicon 均可原生运行，无需 Rosetta 转译。
 
