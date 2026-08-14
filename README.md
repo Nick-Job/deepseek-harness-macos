@@ -1,5 +1,9 @@
 # DeepSeek Harness macOS
 
+<p align="center">
+  <img src="icon.png" width="160" alt="DeepSeek Harness 图标">
+</p>
+
 ![Build](https://github.com/Nick-Job/deepseek-harness-macos/actions/workflows/pake-macos.yml/badge.svg)
 
 使用 [Pake](https://github.com/tw93/Pake)（Rust/Tauri）把 DeepSeek Harness 网页端 dsh web 打包成 macOS 桌面 App。
