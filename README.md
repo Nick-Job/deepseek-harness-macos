@@ -1,26 +1,65 @@
 # DeepSeek Harness macOS
 
-使用 [Pake](https://github.com/tw93/Pake) 将 dsh web（`http://127.0.0.1:3080`）打包为 macOS 桌面 App。
+使用 [Pake](https://github.com/tw93/Pake)（Rust/Tauri）把 DeepSeek Harness 网页端 dsh web 打包成 macOS 桌面 App。
+
+App 启动后会在独立窗口中打开 `http://127.0.0.1:3080`，使用前需要先启动 dsh web 服务。
 
 ## 构建产物
 
-- `DeepSeek Harness.app`：可直接运行的 App
-- `DeepSeek Harness.dmg`：安装包
+每次构建都会产出两个文件：
 
-App 启动后打开 `http://127.0.0.1:3080`，使用前需要先启动 dsh web 服务。
+- `DeepSeek Harness.app`：可以直接运行的 App 文件夹
+- `DeepSeek Harness.dmg`：macOS 安装包
+
+也可以在 [Releases](https://github.com/Nick-Job/deepseek-harness-macos/releases) 页面直接下载已构建好的产物。
+
+## 使用说明
+
+1. 先启动 dsh web：确认 `http://127.0.0.1:3080` 可以正常访问。
+2. 打开 `DeepSeek Harness.app`，或双击 `DeepSeek Harness.dmg` 安装。
+3. 如果 macOS 提示无法验证开发者，请在 Dock 或 Finder 中右键 App，选择“打开”。
 
 ## GitHub Actions
 
-- 手动触发：Actions -> Build DeepSeek Harness macOS App -> Run workflow
-- 标签触发：推送 `v*` 标签后自动构建并发布 Release
+本仓库内置了 `.github/workflows/pake-macos.yml`，支持两种触发方式：
 
-构建产物会以 workflow artifacts 形式保存；标签构建还会自动附加到 GitHub Release。
+- 手动触发：打开 Actions 页面，选择 `Build DeepSeek Harness macOS App`，点击 `Run workflow`。
+- 标签触发：推送 `v*` 标签，例如 `git tag v1.0.0 && git push origin v1.0.0`。
+
+工作流会在 macOS 上完成以下操作：
+
+1. 安装 Pake CLI。
+2. 根据 `app.json` 构建 `.app`。
+3. 构建 `.dmg`。
+4. 上传 `.app.zip` 和 `.dmg` 到 workflow artifacts。
+5. 标签触发时，自动把产物附加到 GitHub Release。
 
 ## 本地构建
 
 ```bash
+# 安装 Pake
 brew install pake
+
+# 构建 .app
 pake --config app.json --json --targets app
+
+# 构建 .dmg
 pake --config app.json --json --targets dmg
 ```
+
+## 配置
+
+主要配置在 `app.json`：
+
+- `url`：要打包的网页地址，默认 `http://127.0.0.1:3080`
+- `name`：应用名称，默认 `DeepSeek Harness`
+- `icon`：应用图标，默认使用仓库里的 `icon.png`
+- `width` / `height`：默认窗口大小
+- `minWidth` / `minHeight`：窗口最小尺寸
+
+## 常见问题
+
+- 打开后是空白页：确认 dsh web 已经启动，并且 `127.0.0.1:3080` 可访问。
+- 提示“无法打开”：当前构建为 ad-hoc 签名，右键 App 选择“打开”即可。
+- 需要 Apple Silicon 版本：在 GitHub Actions 中把 `runs-on` 改为 `macos-14-arm64`，或使用 Pake 的 `--multi-arch` 构建通用版本。
 
