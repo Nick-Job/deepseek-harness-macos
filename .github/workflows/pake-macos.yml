@@ -16,10 +16,9 @@ concurrency:
 jobs:
   build:
     name: Build macOS app and DMG
-    # macos-13 (Intel) 已被 GitHub 弃用，改用当前维护的 macos-15 (arm64)。
-    # multiArch 会在任意架构的 runner 上交叉编译出 universal 通用版。
+    # macos-15 (arm64) 为当前维护的 runner;multiArch 会交叉编译出 universal 通用版。
     runs-on: macos-15
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -45,10 +44,36 @@ jobs:
       - name: Install Pake CLI
         run: npm install -g pake-cli@3.15.6
 
-      # 一次编译同时产出 .app 和 .dmg（macOS 默认 bundle targets 为 app + dmg）。
-      # 不要拆成 --targets app / --targets dmg 两步，那样会重复编译两次，白白拉长构建时间。
-      - name: Build .app and .dmg
-        run: pake --config app.json --json
+      # 只编译 .app（--targets app），之后再注入内置运行时和启动壳，
+      # 最后统一打包 DMG，避免 DMG 里是不带运行时/启动壳的旧 App。
+      - name: Build .app
+        run: pake --config app.json --targets app --json
+
+      # 下载 Node（arm64+x64 → lipo 通用版）并安装 dsh 到 runtime/ 目录
+      - name: Bundle built-in runtime
+        run: ./scripts/bundle-runtime.sh
+
+      # 把 runtime 塞进 App，并用带自动启动逻辑的启动壳替换默认入口
+      - name: Inject runtime and launcher
+        run: |
+          set -e
+          APP="DeepSeek Harness.app"
+          # 1) 放入内置运行时
+          mkdir -p "$APP/Contents/Resources/runtime"
+          cp -R runtime/. "$APP/Contents/Resources/runtime/"
+          # 2) 原二进制改名为 -bin，由启动壳负责拉起
+          BIN_DIR="$APP/Contents/MacOS"
+          mv "$BIN_DIR/pake-deepseekharness" "$BIN_DIR/pake-deepseekharness-bin"
+          cp scripts/launcher.sh "$BIN_DIR/pake-deepseekharness"
+          chmod +x "$BIN_DIR/pake-deepseekharness"
+          # 3) 修改了 bundle 内容，重新做 ad-hoc 签名
+          codesign --force --deep --sign - "$APP"
+
+      - name: Create DMG
+        run: |
+          hdiutil create -volname "DeepSeek Harness" \
+            -srcfolder "DeepSeek Harness.app" \
+            -ov -format UDZO "DeepSeek Harness.dmg"
 
       - name: Zip .app
         run: |
