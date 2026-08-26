@@ -51,9 +51,10 @@ if port_open; then
   log "dsh web 已在 127.0.0.1:$PORT 运行,直接打开 App"
   DSH_PID=""
 else
-  log "启动 dsh web (后台): ${DSH_CMD[*]} web --port $PORT"
+  # 用 --no-open 禁止 dsh web 自开默认浏览器(窗口由下面的 Pake 壳承载)。
+  log "启动 dsh web (后台): ${DSH_CMD[*]} web --no-open --port $PORT"
   cd "$HOME" || exit 1
-  nohup "${DSH_CMD[@]}" web --port "$PORT" >> "$LOG" 2>&1 &
+  nohup "${DSH_CMD[@]}" web --no-open --port "$PORT" >> "$LOG" 2>&1 &
   DSH_PID=$!
   # 等待端口就绪,最多 60 秒(首次运行会初始化 web profile,稍慢)
   for _ in $(seq 1 120); do
