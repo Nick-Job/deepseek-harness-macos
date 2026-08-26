@@ -101,4 +101,4 @@ hdiutil create -volname "DeepSeek Harness" -srcfolder "$APP" -ov -format UDZO "D
 运行时相关参数在 `scripts/bundle-runtime.sh` 顶部：
 
 - `NODE_VERSION`：内置 Node.js 版本，默认 `v22.23.2`
-- `DSH_VERSION`：内置 dsh 版本，默认 `0.1.0-rc.7`
+- `DSH_VERSION`：内置 dsh 版本，默认 `0.1.1-rc.2`

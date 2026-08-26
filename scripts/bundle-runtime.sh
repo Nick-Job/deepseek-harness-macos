@@ -9,13 +9,13 @@
 #   runtime/node_modules/@deepseek-ai/dsh —— dsh 及其全部依赖(含双架构原生模块)
 #
 # 用法: ./scripts/bundle-runtime.sh [node版本] [dsh版本]
-#   默认: NODE_VERSION=v22.23.2  DSH_VERSION=0.1.0-rc.7
+#   默认: NODE_VERSION=v22.23.2  DSH_VERSION=0.1.1-rc.2
 #   在 GitHub Actions(macos-15, arm64)和本地(x86_64)均可运行。
 # ============================================================
 set -euo pipefail
 
 NODE_VERSION="${1:-v22.23.2}"
-DSH_VERSION="${2:-0.1.0-rc.7}"
+DSH_VERSION="${2:-0.1.1-rc.2}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 RUNTIME_DIR="$ROOT_DIR/runtime"
