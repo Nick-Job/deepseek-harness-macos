@@ -113,6 +113,27 @@ find "$NM" -maxdepth 1 -type d \
   \( -name 'node-addon-require-builtin-linux-*' -o -name 'node-addon-require-builtin-win32-*' \) \
   -exec rm -rf {} + 2>/dev/null || true
 
+# ---------- 6b. 禁用浏览器信任认证(适配 Pake 壳) ----------
+# 新版 dsh web 用"每进程启动令牌"做认证: 只有打开它打印的带 ?token= 的 URL
+# 才会种下签名 cookie,否则首页与 /api 都回 401 "dsh web authentication required;
+# reopen the URL printed by dsh web"。而 Pake 壳的 URL 是编译时写死的无 token 地址,
+# 直连必然 401。对"零终端、双击即用"的本地桌面封装,这里关掉内建认证:
+#   - requestRejection: 只保留 Host 信任围栏,不再要求浏览器 cookie
+#   - authorizeIndex:  直接放行首页,不再要求 token 换 cookie
+log "禁用浏览器信任认证(适配 Pake 壳) ..."
+CONN_JS="$NM/@deepseek-ai/dsh-client-connection/lib/index.js"
+if [ ! -f "$CONN_JS" ]; then
+  echo "bundle-runtime: 未找到连接模块 $CONN_JS" >&2
+  exit 1
+fi
+perl -0pi -e 's/this\.browserAuth\.isAuthenticated\(request\) \? void 0 : 401/void 0/' "$CONN_JS"
+perl -0pi -e 's/this\.browserAuth\.authorizeIndex\(request, response\)/true/' "$CONN_JS"
+if grep -q "this.browserAuth.isAuthenticated(request) ? void 0 : 401" "$CONN_JS" || grep -q "this.browserAuth.authorizeIndex(request, response)" "$CONN_JS"; then
+  echo "bundle-runtime: 连接模块补丁未生效" >&2
+  exit 1
+fi
+log "浏览器信任认证已禁用(Pake 壳可直连 / )"
+
 # ---------- 7. 验证 ----------
 log "验证:"
 "$RUNTIME_DIR/bin/node" --version
