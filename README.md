@@ -23,7 +23,7 @@
 ## 🚀 快速开始
 
 1. 去 [Releases](https://github.com/Nick-Job/deepseek-harness-macos/releases) 页面下载最新版本
-   - 二选一：`DeepSeek Harness.app.zip`（解压即用）或 `DeepSeek Harness.dmg`（拖入应用程序）
+   - 二选一：`DeepSeek.Harness.app.zip`（解压即用）或 `DeepSeek.Harness.dmg`（拖入应用程序）
 2. **双击打开 App**
 3. 首次打开 macOS 可能提示"无法验证开发者"——在 App 上**右键 → 打开 → 再点打开**即可（见下方常见问题）
 4. App 会自动完成初始化，稍等片刻即可看到界面 🎉
@@ -38,8 +38,10 @@
 
 | 文件 | 说明 |
 | --- | --- |
-| `DeepSeek Harness.app.zip` | 解压后得到 App，双击即用 |
-| `DeepSeek Harness.dmg` | 安装包，拖进"应用程序"即可 |
+| `DeepSeek.Harness.app.zip` | 解压后得到 App，双击即用 |
+| `DeepSeek.Harness.dmg` | 安装包，拖进"应用程序"即可 |
+> 注意：Release 资产名里的空格会被 GitHub 替换成点（`DeepSeek.Harness.app.zip`）。
+
 | `version.json` | 本次构建记录（App 版本 / 内置 dsh 版本 / 构建时间），供更新核查与排查用 |
 
 ## ⬆️ 版本跟随与自动更新
@@ -131,7 +133,7 @@ chmod +x "$APP/Contents/MacOS/pake-deepseekharness"
 codesign --force --deep --sign - "$APP"
 
 # 5. 打包（可选）
-hdiutil create -volname "DeepSeek Harness" -srcfolder "$APP" -ov -format UDZO "DeepSeek Harness.dmg"
+hdiutil create -volname "DeepSeek Harness" -srcfolder "$APP" -ov -format UDZO "DeepSeek.Harness.dmg"
 ```
 
 单独跑验收测试（都会真实起一个 dsh web 进程，用的是独立的临时 `DSH_HOME`，不碰你的 `~/.dsh`）：
