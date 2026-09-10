@@ -148,5 +148,9 @@ jobs:
             echo "| 上游最新 dsh | \`${{ steps.upstream.outputs.version }}\` |"
             echo "| 已发布内置 dsh | \`${{ steps.released.outputs.version || '未知' }}\` |"
             echo "| 是否需要重建 | ${{ steps.decide.outputs.need }} |"
-            [ -n "${{ steps.bump.outputs.version }}" ] && echo "| 新 App 版本 | \`v${{ steps.bump.outputs.version }}\` |"
+            # 用 if 而不是 `[ ... ] && echo`：后者在条件为假时返回 1，
+            # 会让这一步（乃至整个 workflow）变成失败——只是个汇总，不该有这种副作用。
+            if [ -n "${{ steps.bump.outputs.version }}" ]; then
+              echo "| 新 App 版本 | \`v${{ steps.bump.outputs.version }}\` |"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
