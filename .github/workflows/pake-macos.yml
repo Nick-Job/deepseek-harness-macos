@@ -2,6 +2,15 @@ name: Build DeepSeek Harness macOS App
 
 on:
   workflow_dispatch:
+    inputs:
+      dsh_version:
+        description: "内置 dsh 版本（留空 = 自动跟随 npm 最新版）"
+        required: false
+        default: ""
+      dsh_channel:
+        description: "跟随渠道：latest / next / alpha"
+        required: false
+        default: "latest"
   push:
     tags:
       - "v*"
@@ -19,6 +28,10 @@ jobs:
     # macos-15 (arm64) 为当前维护的 runner;multiArch 会交叉编译出 universal 通用版。
     runs-on: macos-15
     timeout-minutes: 90
+    env:
+      # 渠道可作为仓库变量固定下来（Settings → Variables），默认跟随 npm latest
+      DSH_CHANNEL: ${{ github.event.inputs.dsh_channel || vars.DSH_CHANNEL || 'latest' }}
+      DSH_VERSION_INPUT: ${{ github.event.inputs.dsh_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,30 +57,86 @@ jobs:
       - name: Install Pake CLI
         run: npm install -g pake-cli@3.15.6
 
+      # 先把"要内置哪一版 dsh"定下来，写进 step 输出，后面构建和 Release 说明共用
+      - name: Resolve dsh version to bundle
+        id: dsh
+        run: |
+          set -euo pipefail
+          channel="${DSH_CHANNEL:-latest}"
+          if [ -n "${DSH_VERSION_INPUT:-}" ]; then
+            version="${DSH_VERSION_INPUT}"
+          else
+            version="$(node scripts/dsh-versions.js latest "$channel")"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "channel=${channel}" >> "$GITHUB_OUTPUT"
+          echo "内置 dsh 版本: ${version}（渠道 ${channel}）"
+
       # 只编译 .app（--targets app），之后再注入内置运行时和启动壳，
       # 最后统一打包 DMG，避免 DMG 里是不带运行时/启动壳的旧 App。
       - name: Build .app
         run: pake --config app.json --targets app --json
 
-      # 下载 Node（arm64+x64 → lipo 通用版）并安装 dsh 到 runtime/ 目录
+      # 下载 Node（arm64+x64 → lipo 通用版）并安装 dsh 到 runtime/ 目录。
+      # 该脚本末尾会跑行为级冒烟测试：首页无 cookie 必须 200，且 --no-open 下不得调用 open。
       - name: Bundle built-in runtime
-        run: ./scripts/bundle-runtime.sh
+        run: ./scripts/bundle-runtime.sh v22.23.2 "${{ steps.dsh.outputs.version }}"
 
-      # 把 runtime 塞进 App，并用带自动启动逻辑的启动壳替换默认入口
-      - name: Inject runtime and launcher
+      # 把 runtime 与启动壳/辅助脚本塞进 App
+      - name: Inject runtime, launcher and helper scripts
         run: |
-          set -e
+          set -euo pipefail
           APP="DeepSeek Harness.app"
-          # 1) 放入内置运行时
+          BIN_DIR="$APP/Contents/MacOS"
+
+          # 1) 内置运行时（含 version.json 构建记录）
           mkdir -p "$APP/Contents/Resources/runtime"
           cp -R runtime/. "$APP/Contents/Resources/runtime/"
-          # 2) 原二进制改名为 -bin，由启动壳负责拉起
-          BIN_DIR="$APP/Contents/MacOS"
+
+          # 2) 启动壳 + App 内更新核查所需脚本
+          mkdir -p "$APP/Contents/Resources/scripts/open-guard"
+          cp scripts/dsh-versions.js scripts/patch-dsh-auth.js scripts/update-check.js scripts/smoke-test.sh \
+             "$APP/Contents/Resources/scripts/"
+          cp scripts/open-guard/open "$APP/Contents/Resources/scripts/open-guard/"
+          chmod +x "$APP/Contents/Resources/scripts/smoke-test.sh" "$APP/Contents/Resources/scripts/open-guard/open"
+
+          # 3) 原二进制改名为 -bin，由启动壳负责拉起
           mv "$BIN_DIR/pake-deepseekharness" "$BIN_DIR/pake-deepseekharness-bin"
           cp scripts/launcher.sh "$BIN_DIR/pake-deepseekharness"
           chmod +x "$BIN_DIR/pake-deepseekharness"
-          # 3) 修改了 bundle 内容，重新做 ad-hoc 签名
+
+          # 4) 修改了 bundle 内容，重新做 ad-hoc 签名
           codesign --force --deep --sign - "$APP"
+
+      # 注入后针对 App 里那一份运行时再验一次：401/弹浏览器的问题必须在出厂前拦住
+      - name: Smoke test injected app runtime
+        run: |
+          set -euo pipefail
+          APP="DeepSeek Harness.app"
+          ./scripts/smoke-test.sh --runtime-dir "$APP/Contents/Resources/runtime"
+
+      # 辅助脚本接线检查：更新核查能识别版本、浏览器闸门确实拦得住本机地址
+      - name: Verify helper wiring
+        run: |
+          set -euo pipefail
+          APP="DeepSeek Harness.app"
+          NODE="$APP/Contents/Resources/runtime/bin/node"
+          echo "--- App 内版本状态 ---"
+          "$NODE" "$APP/Contents/Resources/scripts/update-check.js" status --json
+          echo "--- 运行时解析 ---"
+          "$NODE" "$APP/Contents/Resources/scripts/update-check.js" resolve-runtime
+          echo "--- 浏览器闸门（应被静默拦截，退出码 0） ---"
+          DSH_DESKTOP_LOG=/tmp/guard.log DSH_DESKTOP_PORT=3080 \
+            "$APP/Contents/Resources/scripts/open-guard/open" "http://127.0.0.1:3080/?token=should-not-open"
+          grep -q "open-guard: 已拦截" /tmp/guard.log
+          echo "闸门生效 ✓"
+
+      # 启动壳级验收：用构建好的 .app 搭一个"假 App"（App 本体换成桩），
+      # 把用户双击 App 的那条链路整段跑一遍：选运行时 → 起服务 → 不弹浏览器 → 退出收干净
+      - name: Smoke test launcher path
+        run: |
+          set -euo pipefail
+          ./scripts/launcher-smoke-test.sh --app "DeepSeek Harness.app" --port 3291
 
       - name: Create DMG
         run: |
@@ -86,14 +155,24 @@ jobs:
           path: |
             DeepSeek Harness.app.zip
             DeepSeek Harness.dmg
+            runtime/version.json
           if-no-files-found: error
 
-      # 标签触发时发布到 GitHub Release；overwrite 允许重复运行同一标签时覆盖资产
+      # 标签触发时发布到 GitHub Release；overwrite 允许重复运行同一标签时覆盖资产。
+      # version.json 一并发布：上游核查 workflow 用它判断"已发布的内置版本是哪一版"。
       - name: Publish release assets
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           overwrite: true
+          body: |
+            内置 dsh 版本：**${{ steps.dsh.outputs.version }}**（跟随渠道 `${{ steps.dsh.outputs.channel }}`）
+
+            - App 内置 dsh 会自动跟随上游最新版重新构建
+            - 打开 App 时会在后台核查更新：发现更新版 dsh 会就地热更新（下次启动生效）
+            - App 壳本身有更新时，App 内会提示打开发布页
+            - 已验证：首页无 cookie 直接可用（不需要浏览器认证），且启动过程中不会打开浏览器
           files: |
             DeepSeek Harness.app.zip
             DeepSeek Harness.dmg
+            runtime/version.json

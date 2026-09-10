@@ -1,0 +1,37 @@
+#!/bin/bash
+# ============================================================
+# open-guard —— 兜住"误开浏览器"的 PATH 前置闸门
+#
+# App 启动时把这个目录放到 PATH 最前面，于是 dsh（以及它拉起的任何子进程）
+# 调用的 `open` 都会先到这里。
+#
+# 规则：只有当被打开的地址是本机 dsh web 端口（默认 3080）时，才静默拦掉；
+# 其它任何 URL、文件、App 一律原样交给 /usr/bin/open，不影响正常使用。
+#
+# 为什么需要它：dsh 的 `--no-open` 是"约定"，一旦上游改行为、或启动壳漏传参数，
+# 浏览器就会自己弹出来。这层闸门让"双击不该开浏览器"这件事不再依赖单个开关。
+#
+# 逃生开关：DSH_DESKTOP_ALLOW_BROWSER=1 时完全不拦截。
+# ============================================================
+
+PORT="${DSH_DESKTOP_PORT:-3080}"
+LOG="${DSH_DESKTOP_LOG:-$HOME/Library/Logs/deepseek-harness-dsh.log}"
+
+if [ "${DSH_DESKTOP_ALLOW_BROWSER:-0}" = "1" ]; then
+  exec /usr/bin/open "$@"
+fi
+
+for argument in "$@"; do
+  case "$argument" in
+    http://127.0.0.1:* | http://localhost:* | http://\[::1\]:* | http://0.0.0.0:*)
+      target_port="$(printf '%s' "$argument" | sed -E 's#^https?://[^/:]+:([0-9]+).*#\1#')"
+      if [ "$target_port" = "$PORT" ]; then
+        mkdir -p "$(dirname "$LOG")" 2>/dev/null
+        echo "[$(date '+%F %T')] open-guard: 已拦截浏览器打开本机界面 $argument（桌面壳自己承载窗口）" >> "$LOG" 2>/dev/null
+        exit 0
+      fi
+      ;;
+  esac
+done
+
+exec /usr/bin/open "$@"

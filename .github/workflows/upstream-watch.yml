@@ -1,0 +1,138 @@
+name: Watch upstream dsh releases
+
+# 桌面端不再"等你想起来才更新"：每天核查一次 npm 上 @deepseek-ai/dsh 的
+# 最新版，发现比"已发布 App 里内置的那一版"更新，就自动升一个 App 补丁版本号、
+# 打 tag 并触发构建发布。整个过程不需要人工介入。
+#
+# 判据以**最新 Release 里发布的 version.json** 为准（那是真实构建记录）；
+# 拿不到时退回仓库里的 dsh-version.txt。
+
+on:
+  schedule:
+    # 每天 02:17 UTC（北京时间 10:17）核查一次
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "跟随渠道：latest / next / alpha"
+        required: false
+        default: "latest"
+      force:
+        description: "即使版本相同也重建一次（true/false）"
+        required: false
+        default: "false"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: upstream-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: Check npm upstream and trigger a release if newer
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CHANNEL: ${{ github.event.inputs.channel || vars.DSH_CHANNEL || 'latest' }}
+      FORCE: ${{ github.event.inputs.force || 'false' }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Resolve upstream latest version
+        id: upstream
+        run: |
+          set -euo pipefail
+          latest="$(node scripts/dsh-versions.js latest "$CHANNEL")"
+          echo "version=$latest" >> "$GITHUB_OUTPUT"
+          echo "上游最新版($CHANNEL): $latest"
+
+      - name: Read the dsh version already released
+        id: released
+        run: |
+          set -euo pipefail
+          current=""
+          # 优先用最新 Release 里发布的 version.json（真实构建记录）
+          if gh release download --pattern version.json --dir "$RUNNER_TEMP/rel" --clobber 2>/dev/null; then
+            current="$(node -e "try{console.log(require('$RUNNER_TEMP/rel/version.json').dshVersion||'')}catch{}")"
+          fi
+          # 退路：仓库里记录的基线
+          if [ -z "$current" ]; then
+            current="$(tr -d '[:space:]' < dsh-version.txt 2>/dev/null || true)"
+          fi
+          echo "version=$current" >> "$GITHUB_OUTPUT"
+          echo "已发布的内置版本: ${current:-未知}"
+
+      - name: Decide whether a rebuild is needed
+        id: decide
+        run: |
+          set -euo pipefail
+          latest="${{ steps.upstream.outputs.version }}"
+          current="${{ steps.released.outputs.version }}"
+          need="no"
+          if [ "${FORCE}" = "true" ]; then
+            need="yes"; echo "强制重建"
+          elif [ -z "$current" ]; then
+            need="yes"; echo "没有可参考的已发布版本，重建一次"
+          elif [ "$(node scripts/dsh-versions.js compare "$latest" "$current")" = "newer" ]; then
+            need="yes"; echo "上游更新: $current → $latest"
+          else
+            echo "已是最新（$current），无需重建"
+          fi
+          echo "need=$need" >> "$GITHUB_OUTPUT"
+
+      - name: Bump app version and record bundled dsh version
+        if: steps.decide.outputs.need == 'yes'
+        id: bump
+        run: |
+          set -euo pipefail
+          new_version="$(node -e "
+            const fs = require('fs');
+            const app = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+            const parts = String(app.appVersion).split('.').map((n) => Number.parseInt(n, 10) || 0);
+            while (parts.length < 3) parts.push(0);
+            parts[2] += 1;
+            app.appVersion = parts.join('.');
+            fs.writeFileSync('app.json', JSON.stringify(app, null, 2) + '\n');
+            console.log(app.appVersion);
+          ")"
+          printf '%s\n' "${{ steps.upstream.outputs.version }}" > dsh-version.txt
+          echo "version=$new_version" >> "$GITHUB_OUTPUT"
+          echo "App 版本: $new_version，内置 dsh: ${{ steps.upstream.outputs.version }}"
+
+      - name: Commit, tag and trigger the build
+        if: steps.decide.outputs.need == 'yes'
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.json dsh-version.txt
+          git commit -m "chore: 跟随上游 dsh ${{ steps.upstream.outputs.version }}（App v${{ steps.bump.outputs.version }}）"
+          git push origin HEAD:${GITHUB_REF_NAME}
+          git tag "v${{ steps.bump.outputs.version }}"
+          git push origin "v${{ steps.bump.outputs.version }}"
+          echo "已推送 tag v${{ steps.bump.outputs.version }}，构建发布由 pake-macos.yml 接手"
+
+      - name: Summary
+        run: |
+          {
+            echo "### 上游核查结果"
+            echo ""
+            echo "| 项 | 值 |"
+            echo "| --- | --- |"
+            echo "| 渠道 | \`${CHANNEL}\` |"
+            echo "| 上游最新 dsh | \`${{ steps.upstream.outputs.version }}\` |"
+            echo "| 已发布内置 dsh | \`${{ steps.released.outputs.version || '未知' }}\` |"
+            echo "| 是否需要重建 | ${{ steps.decide.outputs.need }} |"
+            [ -n "${{ steps.bump.outputs.version }}" ] && echo "| 新 App 版本 | \`v${{ steps.bump.outputs.version }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
