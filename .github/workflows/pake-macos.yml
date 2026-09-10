@@ -11,6 +11,10 @@ on:
         description: "跟随渠道：latest / next / alpha"
         required: false
         default: "latest"
+      release_tag:
+        description: "发布到该 tag（留空 = 不发布，只出产物；由 upstream-watch 自动传入）"
+        required: false
+        default: ""
   push:
     tags:
       - "v*"
@@ -158,12 +162,18 @@ jobs:
             runtime/version.json
           if-no-files-found: error
 
-      # 标签触发时发布到 GitHub Release；overwrite 允许重复运行同一标签时覆盖资产。
+      # 发布到 GitHub Release。两种触发方式：
+      #   1) 推 v* 标签（tag push）—— 手动发版走这条
+      #   2) upstream-watch 用 workflow_dispatch 传入 release_tag —— 自动跟随上游走这条
+      # 为什么自动跟随不能只靠打 tag：用 GITHUB_TOKEN 推的 tag 不会触发新的 workflow
+      # 运行（GitHub 的防递归规则），所以必须显式 dispatch。
+      # overwrite 允许重复运行同一标签时覆盖资产。
       # version.json 一并发布：上游核查 workflow 用它判断"已发布的内置版本是哪一版"。
       - name: Publish release assets
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
           overwrite: true
           body: |
             内置 dsh 版本：**${{ steps.dsh.outputs.version }}**（跟随渠道 `${{ steps.dsh.outputs.channel }}`）

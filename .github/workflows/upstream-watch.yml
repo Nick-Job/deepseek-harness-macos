@@ -24,6 +24,8 @@ on:
 
 permissions:
   contents: write
+  # 需要显式 dispatch 构建 workflow（见下面"为什么不能只靠打 tag"）
+  actions: write
 
 concurrency:
   group: upstream-watch
@@ -119,9 +121,21 @@ jobs:
           git add app.json dsh-version.txt
           git commit -m "chore: 跟随上游 dsh ${{ steps.upstream.outputs.version }}（App v${{ steps.bump.outputs.version }}）"
           git push origin HEAD:${GITHUB_REF_NAME}
-          git tag "v${{ steps.bump.outputs.version }}"
-          git push origin "v${{ steps.bump.outputs.version }}"
-          echo "已推送 tag v${{ steps.bump.outputs.version }}，构建发布由 pake-macos.yml 接手"
+
+          # 顺手把版本 tag 落到仓库里（失败也不影响发布：真正建 release 的是
+          # 下面这次 dispatch，action-gh-release 会在 tag 不存在时自动创建）
+          git tag "v${{ steps.bump.outputs.version }}" 2>/dev/null || true
+          git push origin "v${{ steps.bump.outputs.version }}" 2>/dev/null || true
+
+          # 为什么不能只靠"推 tag 触发构建"：用 GITHUB_TOKEN 推的 tag 不会触发新的
+          # workflow 运行（GitHub 防递归规则，workflow_dispatch 是唯一的例外），
+          # 所以这里显式 dispatch，并把 release_tag 交给构建 workflow 去发版。
+          gh workflow run pake-macos.yml \
+            --ref "${GITHUB_REF_NAME}" \
+            -f dsh_version="${{ steps.upstream.outputs.version }}" \
+            -f dsh_channel="${CHANNEL}" \
+            -f release_tag="v${{ steps.bump.outputs.version }}"
+          echo "已触发构建发布 v${{ steps.bump.outputs.version }}（内置 dsh ${{ steps.upstream.outputs.version }}）"
 
       - name: Summary
         run: |
