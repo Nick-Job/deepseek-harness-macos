@@ -27,7 +27,7 @@ for argument in "$@"; do
       target_port="$(printf '%s' "$argument" | sed -E 's#^https?://[^/:]+:([0-9]+).*#\1#')"
       if [ "$target_port" = "$PORT" ]; then
         mkdir -p "$(dirname "$LOG")" 2>/dev/null
-        echo "[$(date '+%F %T')] open-guard: 已拦截浏览器打开本机界面 $argument（桌面壳自己承载窗口）" >> "$LOG" 2>/dev/null
+        echo "[$(date '+%F %T')] open-guard: 已拦截浏览器打开本机界面 ${argument}（桌面壳自己承载窗口）" >> "$LOG" 2>/dev/null
         exit 0
       fi
       ;;

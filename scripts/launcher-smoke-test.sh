@@ -75,7 +75,7 @@ export DSH_DESKTOP_AUTO_UPDATE=0
 export DSH_HOME="$WORK/dsh-home"
 mkdir -p "$DSH_DESKTOP_SUPPORT_DIR" "$DSH_HOME"
 
-echo "[launcher-smoke-test] 启动假 App（端口 $PORT，日志 $LOG）..."
+echo "[launcher-smoke-test] 启动假 App（端口 ${PORT}，日志 ${LOG}）..."
 "$FAKE/Contents/MacOS/pake-deepseekharness" > "$WORK/stdout.log" 2>&1
 LAUNCHER_CODE=$?
 
