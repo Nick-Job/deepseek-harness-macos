@@ -167,14 +167,16 @@ jobs:
       #   2) upstream-watch 用 workflow_dispatch 传入 release_tag —— 自动跟随上游走这条
       # 为什么自动跟随不能只靠打 tag：用 GITHUB_TOKEN 推的 tag 不会触发新的 workflow
       # 运行（GitHub 的防递归规则），所以必须显式 dispatch。
-      # overwrite 允许重复运行同一标签时覆盖资产。
+      # overwrite_files 允许重复运行同一标签时覆盖资产。
+      # （注意：v2 里这个输入叫 overwrite_files，写成 overwrite 会被静默忽略，
+      #  于是重复发布同一 tag 时会因"资产已存在"失败。）
       # version.json 一并发布：上游核查 workflow 用它判断"已发布的内置版本是哪一版"。
       - name: Publish release assets
         if: startsWith(github.ref, 'refs/tags/') || inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.release_tag || github.ref_name }}
-          overwrite: true
+          overwrite_files: true
           body: |
             内置 dsh 版本：**${{ steps.dsh.outputs.version }}**（跟随渠道 `${{ steps.dsh.outputs.channel }}`）
 
